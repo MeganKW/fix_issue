@@ -6,4 +6,4 @@ services:
     environment:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
     working_dir: /app
-    command: python examples/fix_repo_issue/fix_repo_issue.py
+    command: python setup.py
