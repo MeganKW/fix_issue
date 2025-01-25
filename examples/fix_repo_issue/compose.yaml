@@ -1,0 +1,9 @@
+services:
+  fix-repo:
+    image: python:3.11-slim
+    volumes:
+      - .:/app
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    working_dir: /app
+    command: python examples/fix_repo_issue/fix_repo_issue.py
