@@ -154,28 +154,49 @@ def setup(
         make_request_to_github(
             "GET",
             repo_url,
-            f"branches/{branch}/fix/{issue_number}/source_{short_commit_id}",
+            f"branches/{f'{branch}/' if branch else ''}fix/{issue_number}/source_{short_commit_id}",
         )
     except requests.exceptions.HTTPError:
         # If not, create a source branch for this commit
         print(f"Creating source branch for commit {commit_id}")
-        try:
-            make_request_to_github(
-                "POST",
-                repo_url,
-                "git/refs",
-                {
-                    "ref": f"refs/heads/{branch+'/' if branch else ''}fix/{issue_number}/source_{short_commit_id}",
-                    "sha": commit_id,
-                },
-            )
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 422:
-                print(
-                    f"Source branch {branch+'/' if branch else ''}fix/{issue_number}/source_{short_commit_id} already exists"
-                )
-            else:
-                raise e
+        # try:
+        make_request_to_github(
+            "POST",
+            repo_url,
+            "git/refs",
+            {
+                "ref": f"refs/heads/{branch+'/' if branch else ''}fix/{issue_number}/source_{short_commit_id}",
+                "sha": commit_id,
+            },
+        )
+        # except requests.exceptions.HTTPError as e:
+        #     if e.response.status_code == 422:
+        #         print(
+        #             f"Source branch {branch+'/' if branch else ''}fix/{issue_number}/source_{short_commit_id} already exists"
+        #         )
+        #     else:
+        #         raise e
+
+    run_uuid = str(uuid.uuid4())
+    # Make a branch with the current run uuid
+
+    try:  # See if the run branch exists
+        make_request_to_github(
+            "GET",
+            repo_url,
+            f"branches/{f'{branch}/' if branch else ''}fix/{issue_number}/source_{short_commit_id}-run_{run_uuid}",
+        )
+    except requests.exceptions.HTTPError:
+        # If not, create a run branch
+        make_request_to_github(
+            "POST",
+            repo_url,
+            "git/refs",
+            {
+                "ref": f"refs/heads/{branch+'/' if branch else ''}fix/{issue_number}/source_{short_commit_id}-run_{run_uuid}",
+                "sha": commit_id,
+            },
+        )
 
     issue_content = get_issue_content(github_client, repo_url, issue_number)
     write_file_for_agent(AGENT_ISSUE_CONTENT_INPUT_FILE, issue_content)
