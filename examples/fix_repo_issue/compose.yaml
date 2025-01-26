@@ -1,9 +1,6 @@
 services:
-  fix-repo:
+  default:
     image: python:3.11-slim
-    volumes:
-      - .:/app
-    environment:
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
     working_dir: /app
-    command: python setup.py
+    network_mode: host
+    command: bash -c "apt-get update && apt-get install -y git && git clone ${REPO_URL} && tail -f /dev/null" # Cloning repo url is included so we can cache after cloning
