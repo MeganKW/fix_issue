@@ -1,1 +1,1 @@
-python pull_git_content.py https://github.com/UKGovernmentBEIS/inspect_ai --output-dir ./output --issue 1174 --pr 1161 --raw
+ python examples/fix_repo_issue/pull_git_content.py https://github.com/UKGovernmentBEIS/inspect_ai --output-dir ./examples/fix_repo_issue/tests/test_responses --issue 1174 --pr 1161 --raw 

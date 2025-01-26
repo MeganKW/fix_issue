@@ -3,14 +3,20 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from fix_repo_issue import (
+    create_sample,
+    fix_repo_issue,
+    get_instructions,
+    get_latest_commit_id,
+    hash_content,
+    pr_and_end,
+)
 from pytest_mock import MockerFixture
 
 from inspect_ai import Task
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelName
 from inspect_ai.solver import TaskState
-
-from .. import fix_repo_issue
 
 
 @pytest.fixture(autouse=True)
@@ -173,7 +179,7 @@ def test_get_latest_commit_id(
         return_value=mock_response,
     )
 
-    result = fix_repo_issue.get_latest_commit_id("https://github.com/owner/repo")
+    result = get_latest_commit_id("https://github.com/owner/repo")
     assert result == "abc123def456"
 
 
@@ -196,14 +202,14 @@ def test_hash_content(
     if isinstance(content, pathlib.Path):
         mocker.patch.object(pathlib.Path, "read_text", return_value="test content")
 
-    result = fix_repo_issue.hash_content(content)
+    result = hash_content(content)
     assert result == expected_hash
 
 
 def test_get_instructions() -> None:
     repo_url = "https://github.com/owner/repo"
     commit_id = "abc123def456"
-    result = fix_repo_issue.get_instructions(repo_url, commit_id)
+    result = get_instructions(repo_url, commit_id)
 
     assert repo_url in result
     assert commit_id in result
@@ -221,7 +227,7 @@ def test_create_sample(
     commit_id = "abc123def456"
     repo_install_script = "install.sh"
 
-    sample = fix_repo_issue.create_sample(
+    sample = create_sample(
         repo_url=repo_url,
         commit_id=commit_id,
         pr_history=mock_pr_history,
@@ -275,24 +281,24 @@ def test_fix_repo_issue_validation(
         return_value=mock_response,
     )
     mocker.patch(
-        "examples.fix_repo_issue.pull_git_content.get_issue_content",
-        return_value=mock_issue_response["body"],
+        "fix_repo_issue.pull_git_content.get_issue_content",
+        return_value=(mock_issue_response["body"], {"raw": "data"}),
     )
     mocker.patch(
-        "examples.fix_repo_issue.pull_git_content.get_pr_content",
-        return_value=mock_pr_response["body"],
+        "fix_repo_issue.pull_git_content.get_pr_content",
+        return_value=(mock_pr_response["body"], [{"raw": "data"}]),
     )
 
     if should_raise:
         with pytest.raises(ValueError):
-            fix_repo_issue.fix_repo_issue(
+            fix_repo_issue(
                 live_pull_issue=live_pull_issue,
                 issue_content=issue_content,
                 live_pull_prs=live_pull_prs,
                 pr_history=pr_history,
             )
     else:
-        result = fix_repo_issue.fix_repo_issue(
+        result = fix_repo_issue(
             live_pull_issue=live_pull_issue,
             issue_content=issue_content,
             live_pull_prs=live_pull_prs,
@@ -323,16 +329,16 @@ async def test_pr_and_end_scorer(mocker: MockerFixture) -> None:
         return_value=mock_response,
     )
     mocker.patch(
-        "examples.fix_repo_issue.end_run.remote_base_branch_exists",
+        "fix_repo_issue.end_run.remote_base_branch_exists",
         return_value=False,
     )
-    mocker.patch("examples.fix_repo_issue.end_run.create_remote_base_branch")
+    mocker.patch("fix_repo_issue.end_run.create_remote_base_branch")
     mocker.patch(
-        "examples.fix_repo_issue.end_run.get_run_head_branch_name",
+        "fix_repo_issue.end_run.get_run_head_branch_name",
         return_value="head_branch",
     )
     mocker.patch(
-        "examples.fix_repo_issue.end_run.get_remote_base_branch_name",
+        "fix_repo_issue.end_run.get_remote_base_branch_name",
         return_value="base_branch",
     )
 
@@ -340,7 +346,7 @@ async def test_pr_and_end_scorer(mocker: MockerFixture) -> None:
     mocker.patch("builtins.open", mocker.mock_open(read_data="Test PR body"))
 
     # Create and run scorer
-    scorer = fix_repo_issue.pr_and_end("owner/repo", 123, "abc123def456", "origin")
+    scorer = pr_and_end("owner/repo", 123, "abc123def456", "origin")
     state = TaskState(
         model=ModelName("openai/gpt-4"),
         messages=[],

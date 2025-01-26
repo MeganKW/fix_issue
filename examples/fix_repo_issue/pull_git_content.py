@@ -81,6 +81,56 @@ def get_issue_content(
     return make_issue_summary(issue_labels, issue_comments, issue_info), raw_data
 
 
+def make_request_to_graph_ql(repo_url: str, pr_number: int) -> dict:
+    max_num = 100
+    owner, repo = get_owner_and_repo_from_url(repo_url)
+    query = f"""query {{
+        repository(name: "{repo}", owner: "{owner}") {{
+            pullRequest(number: {pr_number}) {{
+                title
+                body
+                reviews(first: {max_num}) {{
+                    nodes {{
+                        bodyText
+                        createdAt
+                        author {{ login }}
+                        comments(first: {max_num}) {{
+                            nodes {{
+                                author {{ login }}
+                                body
+                                createdAt
+                                diffHunk
+                                position
+                                subjectType
+                            }}
+                        }}
+                    }}
+                }}
+                comments(first: {max_num}) {{
+                    nodes {{
+                        author {{ login }}
+                        createdAt
+                        body
+                    }}
+                    totalCount
+                }}
+            }}
+        }}
+    }}"""
+    headers = {
+        "Authorization": f"bearer {os.environ.get('GITHUB_TOKEN')}",
+        "Content-Type": "application/json",
+    }
+    response = requests.post(
+        "https://api.github.com/graphql", headers=headers, json={"query": query}
+    )
+
+    if not response.ok:
+        raise requests.exceptions.HTTPError(f"GraphQL request failed: {response.text}")
+
+    return response.json()
+
+
 def get_pr_data(repo_url: str, pr_number: int) -> tuple[dict, dict]:
     try:
         owner, repo = repo_url.split("/")[-2:]
@@ -93,6 +143,7 @@ def get_pr_data(repo_url: str, pr_number: int) -> tuple[dict, dict]:
             f"{base_url}/pulls/{pr_number}/comments"
         )
         review_comments_response.raise_for_status()
+        graph_ql_response = make_request_to_graph_ql(repo_url, pr_number)
     except requests.exceptions.HTTPError as e:
         print(f"Error getting PR data for {repo_url} {pr_number}: {e}")
         return {}, {}
@@ -101,12 +152,14 @@ def get_pr_data(repo_url: str, pr_number: int) -> tuple[dict, dict]:
         "pr": pr_response.json(),
         "comments": comments_response.json(),
         "review_comments": review_comments_response.json(),
+        "graph_ql_response": graph_ql_response,
     }
 
     raw_data = {
         "pr": pr_response.json(),
         "comments": comments_response.json(),
         "review_comments": review_comments_response.json(),
+        "graph_ql_response": graph_ql_response,
     }
 
     return pr_data, raw_data
