@@ -281,11 +281,11 @@ def test_fix_repo_issue_validation(
         return_value=mock_response,
     )
     mocker.patch(
-        "fix_repo_issue.pull_git_content.get_issue_content",
+        "fix_repo_issue.src.pull_git_content.get_issue_content",
         return_value=(mock_issue_response["body"], {"raw": "data"}),
     )
     mocker.patch(
-        "fix_repo_issue.pull_git_content.get_pr_content",
+        "fix_repo_issue.src.pull_git_content.get_pr_content",
         return_value=(mock_pr_response["body"], [{"raw": "data"}]),
     )
 
@@ -329,16 +329,16 @@ async def test_pr_and_end_scorer(mocker: MockerFixture) -> None:
         return_value=mock_response,
     )
     mocker.patch(
-        "fix_repo_issue.end_run.remote_base_branch_exists",
+        "fix_repo_issue.src.end_run.remote_base_branch_exists",
         return_value=False,
     )
-    mocker.patch("fix_repo_issue.end_run.create_remote_base_branch")
+    mocker.patch("fix_repo_issue.src.end_run.create_remote_base_branch")
     mocker.patch(
-        "fix_repo_issue.end_run.get_run_head_branch_name",
+        "fix_repo_issue.src.end_run.get_run_head_branch_name",
         return_value="head_branch",
     )
     mocker.patch(
-        "fix_repo_issue.end_run.get_remote_base_branch_name",
+        "fix_repo_issue.src.end_run.get_remote_base_branch_name",
         return_value="base_branch",
     )
 

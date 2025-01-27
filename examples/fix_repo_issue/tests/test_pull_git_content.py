@@ -3,12 +3,13 @@ import os
 
 import pytest
 import requests
-from fix_repo_issue.pull_git_content import (
+from pytest_mock import MockerFixture
+
+from fix_repo_issue.src.pull_git_content import (
     get_issue_content,
     get_pr_content,
     get_pr_data,
 )
-from pytest_mock import MockerFixture
 
 
 @pytest.fixture

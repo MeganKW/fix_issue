@@ -43,7 +43,7 @@ def get_issue_labels(url: str, issue: int) -> list[dict]:
     if response.status_code == 200:
         return response.json()
     else:
-        raise Exception(f"Failed to fetch issue labels: {response.status_code}")
+        raise Exception(f"Failed to fetch issue labels from {url}: {response.json()}")
 
 
 def clean_up_comments(comments: list[dict]) -> str:

@@ -3,4 +3,5 @@ services:
     image: python:3.11-slim
     working_dir: /app
     network_mode: host
-    command: bash -c "apt-get update && apt-get install -y git && git clone ${REPO_URL} && tail -f /dev/null" # Cloning repo url is included so we can cache after cloning
+    privileged: true
+    command: tail -f /dev/null

@@ -2,8 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
-
-from fix_repo_issue.display_pr_content import (
+from fix_repo_issue.src.display_pr_content import (
     format_comment,
     format_pr_data,
     format_review,
