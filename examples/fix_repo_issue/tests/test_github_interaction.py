@@ -2,7 +2,9 @@ import datetime
 
 import pytest
 import requests
-from fix_repo_issue.src.end_run import (
+from pytest_mock import MockerFixture
+
+from ..src.github_interaction import (
     create_remote_base_branch,
     get_remote_base_branch_name,
     get_run_head_branch_name,
@@ -10,7 +12,6 @@ from fix_repo_issue.src.end_run import (
     make_request_to_github,
     remote_base_branch_exists,
 )
-from pytest_mock import MockerFixture
 
 
 @pytest.mark.parametrize(

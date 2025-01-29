@@ -5,11 +5,7 @@ import pytest
 import requests
 from pytest_mock import MockerFixture
 
-from fix_repo_issue.src.pull_git_content import (
-    get_issue_content,
-    get_pr_content,
-    get_pr_data,
-)
+from ..src.get_issue_or_pr_data import get_issue_content, get_pr_content, get_pr_data
 
 
 @pytest.fixture

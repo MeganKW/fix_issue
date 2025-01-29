@@ -5,3 +5,5 @@ services:
     network_mode: host
     privileged: true
     command: tail -f /dev/null
+    volumes:
+      - ../../vivaria:/app/vivaria

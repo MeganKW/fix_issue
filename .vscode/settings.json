@@ -14,7 +14,12 @@
     "editor.formatOnSave": false
   },
   "[python]": {
-    "editor.defaultFormatter": "charliermarsh.ruff"
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "always",
+      "source.fixAll": "always"
+    }
   },
   "search.exclude": {
     "logs/**": true
@@ -34,5 +39,32 @@
   "workbench.editorAssociations": {
     "*.ipynb": "jupyter-notebook",
     "*.csv": "gc-excelviewer-csv-editor"
-  }
+  },
+  "cSpell.words": [
+    "asynio",
+    "aysnc",
+    "dataclass",
+    "goodfire",
+    "Goodfire",
+    "GOODFIRE",
+    "Goodfire's",
+    "GPQA",
+    "interpretability",
+    "isinstance",
+    "jjallaire",
+    "kwargs",
+    "logits",
+    "logprob",
+    "Logprobs",
+    "menhguin",
+    "mmlu",
+    "MMLU",
+    "modelapi",
+    "Namespacing",
+    "pyproject",
+    "standardisation",
+    "standardise",
+    "startswith",
+    "VLLM"
+  ]
 }

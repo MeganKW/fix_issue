@@ -1,0 +1,92 @@
+{
+  "data": {
+    "repository": {
+      "issue": {
+        "number": 1174,
+        "title": "Broader notion of retryable exception",
+        "body": "Currently, we retry a provider error if it's a rate limit:\n\n```python\nretry=retry_if_exception(self.api.is_rate_limit),\n```\nhttps://github.com/UKGovernmentBEIS/inspect_ai/blob/ac268d190402f8fd415f355eabda2be776964e1f/src/inspect_ai/model/_model.py#L322\n\nBut there are other errors that should be retried, such as undifferentiated 500s, arguably 502s, timeouts, and things like:\n\n```\nhttpx.RemoteProtocolError: Server disconnected without sending a response.\n```\n\n-----\n\nCurrently these notions are sometimes conflated in the code, e.g. here a ReadTimeOut is treated as a rate limit:\n\n```\n    @override\n    def is_rate_limit(self, ex: BaseException) -> bool:\n        return (\n            isinstance(ex, SDKError)\n            and ex.status_code == 429\n            or isinstance(ex, ReadTimeout | AsyncReadTimeout)\n        )\n```\nhttps://github.com/UKGovernmentBEIS/inspect_ai/blob/ac268d190402f8fd415f355eabda2be776964e1f/src/inspect_ai/model/_providers/mistral.py#L173-L179\n\n----\n\nMy proposal is to introduce a new method `should_retry` to `ModelAPI` to capture the broader notion of an exception that should be retried. If you agree with the idea, I can take a crack at implementing this.\n\nIn the in-progress display, we should probably also replace `HTTP Rate Limits` with `HTTP Retries` or something. ",
+        "createdAt": "2025-01-22T17:29:02Z",
+        "author": {
+          "login": "tadamcz"
+        },
+        "labels": {
+          "nodes": []
+        },
+        "comments": {
+          "nodes": [
+            {
+              "author": {
+                "login": "jjallaire"
+              },
+              "body": "Yes, that method should be renamed `should_retry` as its only used for determining whether we should retry. So in fact the \"read timeout\" isn't treated as a rate limit (that rate limit counter actually looks at 429 responses at a lower level). Renaming the method will clean up those semantics.\n\nSadly it's kind of an empirical question for each provider which errors are in fact retryable. The `AsyncReadTimeout` is something we noticed that Mistral just randomly had in its stack and it was always recoverable.  Here is a method that faithfully implements the original recommendations from Google on retries when interacting w/ GCP: https://github.com/UKGovernmentBEIS/inspect_ai/blob/b4b165604c84d5e49b70f16036d191bafe4b66c6/src/inspect_ai/_util/retry.py#L12.  \n\nIdeally each provider could apply this heuristic + whatever custom heuristics are required. The current as you no doubt noted is kind of scattershot. Ideally we can intercept HTTP status code bearing exceptions for all providers and apply the heuristics in the function linked to above. Then, in addition we can add other exception types over time that we've noticed are retryable.\n\n",
+              "createdAt": "2025-01-22T23:40:30Z"
+            },
+            {
+              "author": {
+                "login": "tadamcz"
+              },
+              "body": "> Yes, that method should be renamed should_retry as its only used for determining whether we should retry.\n\nThat works as well, if you're OK with a breaking change to the API. \n\n> that rate limit counter actually looks at 429 responses at a lower level\n\nDidn't realise this! Thanks \n\n> Ideally each provider could apply this heuristic + whatever custom heuristics are required.\n\nYep, this makes sense. ",
+              "createdAt": "2025-01-22T23:54:30Z"
+            },
+            {
+              "author": {
+                "login": "tadamcz"
+              },
+              "body": "> that rate limit counter actually looks at 429 responses at a lower level\n\nIt would be useful to display the number of retried responses, so that there is some indication of what's going on if lots of requests are being retried without being 429s. OTOH, we don't want to overload the in-progress display with an ever-increasing amount of information. If we're going to have just one, IMO the total number retried is more important than the number rate limited. What do you think?",
+              "createdAt": "2025-01-22T23:57:21Z"
+            },
+            {
+              "author": {
+                "login": "jjallaire"
+              },
+              "body": "You might want to hold off on this only because we've got another set of related changes we want to make soon: being able to detect exactly the time taken for inference (vs. retries) on a call to `generate()`. This is going to be either complicated (because model packages do their own retrying which is not detectable without either monkey patching or scraping debug logs) or will involve our turning off all retries and handling them ourselves (but this isn't a great path either b/c some of the model packages do very fancy retrying with special HTTP headers that it would be a huge amount of work to emulate).\n\nAnyway, all the code related to retrying/rate limits is due for an overhaul (and this is the top priority of one of our biggest users).  This will probably go down in the next 3-4 weeks so I would wait for this to land (or even be in progress and then we can work on it together).\n\n",
+              "createdAt": "2025-01-23T00:05:22Z"
+            },
+            {
+              "author": {
+                "login": "jjallaire"
+              },
+              "body": "\n> That works as well, if you're OK with a breaking change to the API.\n\nI'd just rename the stuff inside Inspect but still call the old API for backwards compatibility.\n\n\n",
+              "createdAt": "2025-01-23T00:06:26Z"
+            },
+            {
+              "author": {
+                "login": "tadamcz"
+              },
+              "body": "> This will probably go down in the next 3-4 weeks so I would wait for this to land (or even be in progress and then we can work on it together).\n\nSure, happy to wait. Keep us posted on this issue. ",
+              "createdAt": "2025-01-23T13:20:41Z"
+            },
+            {
+              "author": {
+                "login": "tadamcz"
+              },
+              "body": "> I'd just rename the stuff inside Inspect but still call the old API for backwards compatibility.\n\nSorry, how would this work? At first glance I don't see how this would work with Python inheritance (unless doing some really gnarly introspection stuff that I don't think we should do). Could you post a code snippet demonstrating what you mean? ",
+              "createdAt": "2025-01-23T13:20:48Z"
+            },
+            {
+              "author": {
+                "login": "jjallaire"
+              },
+              "body": "Yes, some introspection (that's very frequently what you need to do to provide graceful backward compatibility). We want both of these things to be true: we almost never break people _and_ we evolve our APIs over time to make them more elegant. Upholding those principles is IMO more important than the principle of \"never do anything gnarly\".",
+              "createdAt": "2025-01-23T14:03:43Z"
+            },
+            {
+              "author": {
+                "login": "tadamcz"
+              },
+              "body": "I see, and fair enough. What would this look like? A code snippet would be perfect for me to learn about this.",
+              "createdAt": "2025-01-23T14:18:45Z"
+            },
+            {
+              "author": {
+                "login": "jjallaire"
+              },
+              "body": "Something like this:\n\n```python\ndef is_overridden(method_name: str, subclass: Type, base_class: Type) -> bool:\n    return getattr(subclass, method_name).__func__ != getattr(base_class, method_name).__func__\n\ndef is_rate_limit_overridden(model: ModelAPI) -> bool:\n    return is_overridden(\"is_rate_limit\", type(model), ModelAPI)\n```\n\n",
+              "createdAt": "2025-01-23T14:42:08Z"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

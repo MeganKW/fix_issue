@@ -1,0 +1,89 @@
+Title: Broader notion of retryable exception
+Issue #1174
+Author: tadamcz
+Created at: 2025-01-22T17:29:02Z
+Body: Currently, we retry a provider error if it's a rate limit:
+
+```python
+retry=retry_if_exception(self.api.is_rate_limit),
+```
+https://github.com/UKGovernmentBEIS/inspect_ai/blob/ac268d190402f8fd415f355eabda2be776964e1f/src/inspect_ai/model/_model.py#L322
+
+But there are other errors that should be retried, such as undifferentiated 500s, arguably 502s, timeouts, and things like:
+
+```
+httpx.RemoteProtocolError: Server disconnected without sending a response.
+```
+
+-----
+
+Currently these notions are sometimes conflated in the code, e.g. here a ReadTimeOut is treated as a rate limit:
+
+```
+    @override
+    def is_rate_limit(self, ex: BaseException) -> bool:
+        return (
+            isinstance(ex, SDKError)
+            and ex.status_code == 429
+            or isinstance(ex, ReadTimeout | AsyncReadTimeout)
+        )
+```
+https://github.com/UKGovernmentBEIS/inspect_ai/blob/ac268d190402f8fd415f355eabda2be776964e1f/src/inspect_ai/model/_providers/mistral.py#L173-L179
+
+----
+
+My proposal is to introduce a new method `should_retry` to `ModelAPI` to capture the broader notion of an exception that should be retried. If you agree with the idea, I can take a crack at implementing this.
+
+In the in-progress display, we should probably also replace `HTTP Rate Limits` with `HTTP Retries` or something. 
+Labels: []
+Comments: [2025-01-22] jjallaire: Yes, that method should be renamed `should_retry` as its only used for determining whether we should retry. So in fact the "read timeout" isn't treated as a rate limit (that rate limit counter actually looks at 429 responses at a lower level). Renaming the method will clean up those semantics.
+
+Sadly it's kind of an empirical question for each provider which errors are in fact retryable. The `AsyncReadTimeout` is something we noticed that Mistral just randomly had in its stack and it was always recoverable.  Here is a method that faithfully implements the original recommendations from Google on retries when interacting w/ GCP: https://github.com/UKGovernmentBEIS/inspect_ai/blob/b4b165604c84d5e49b70f16036d191bafe4b66c6/src/inspect_ai/_util/retry.py#L12.  
+
+Ideally each provider could apply this heuristic + whatever custom heuristics are required. The current as you no doubt noted is kind of scattershot. Ideally we can intercept HTTP status code bearing exceptions for all providers and apply the heuristics in the function linked to above. Then, in addition we can add other exception types over time that we've noticed are retryable.
+
+[2025-01-22] tadamcz: > Yes, that method should be renamed should_retry as its only used for determining whether we should retry.
+
+That works as well, if you're OK with a breaking change to the API. 
+
+> that rate limit counter actually looks at 429 responses at a lower level
+
+Didn't realise this! Thanks 
+
+> Ideally each provider could apply this heuristic + whatever custom heuristics are required.
+
+Yep, this makes sense.
+
+[2025-01-22] tadamcz: > that rate limit counter actually looks at 429 responses at a lower level
+
+It would be useful to display the number of retried responses, so that there is some indication of what's going on if lots of requests are being retried without being 429s. OTOH, we don't want to overload the in-progress display with an ever-increasing amount of information. If we're going to have just one, IMO the total number retried is more important than the number rate limited. What do you think?
+
+[2025-01-23] jjallaire: You might want to hold off on this only because we've got another set of related changes we want to make soon: being able to detect exactly the time taken for inference (vs. retries) on a call to `generate()`. This is going to be either complicated (because model packages do their own retrying which is not detectable without either monkey patching or scraping debug logs) or will involve our turning off all retries and handling them ourselves (but this isn't a great path either b/c some of the model packages do very fancy retrying with special HTTP headers that it would be a huge amount of work to emulate).
+
+Anyway, all the code related to retrying/rate limits is due for an overhaul (and this is the top priority of one of our biggest users).  This will probably go down in the next 3-4 weeks so I would wait for this to land (or even be in progress and then we can work on it together).
+
+[2025-01-23] jjallaire: > That works as well, if you're OK with a breaking change to the API.
+
+I'd just rename the stuff inside Inspect but still call the old API for backwards compatibility.
+
+[2025-01-23] tadamcz: > This will probably go down in the next 3-4 weeks so I would wait for this to land (or even be in progress and then we can work on it together).
+
+Sure, happy to wait. Keep us posted on this issue.
+
+[2025-01-23] tadamcz: > I'd just rename the stuff inside Inspect but still call the old API for backwards compatibility.
+
+Sorry, how would this work? At first glance I don't see how this would work with Python inheritance (unless doing some really gnarly introspection stuff that I don't think we should do). Could you post a code snippet demonstrating what you mean?
+
+[2025-01-23] jjallaire: Yes, some introspection (that's very frequently what you need to do to provide graceful backward compatibility). We want both of these things to be true: we almost never break people _and_ we evolve our APIs over time to make them more elegant. Upholding those principles is IMO more important than the principle of "never do anything gnarly".
+
+[2025-01-23] tadamcz: I see, and fair enough. What would this look like? A code snippet would be perfect for me to learn about this.
+
+[2025-01-23] jjallaire: Something like this:
+
+```python
+def is_overridden(method_name: str, subclass: Type, base_class: Type) -> bool:
+    return getattr(subclass, method_name).__func__ != getattr(base_class, method_name).__func__
+
+def is_rate_limit_overridden(model: ModelAPI) -> bool:
+    return is_overridden("is_rate_limit", type(model), ModelAPI)
+```
